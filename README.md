@@ -24,23 +24,26 @@ Project IoT sederhana berbasis ESP32 untuk mengatur LED melalui halaman web. Kon
 
 > GPIO2 adalah pin boot-strapping pada beberapa board ESP32. Pastikan rangkaian LED tidak mengganggu proses boot. Jika LED board menggunakan pin atau polaritas berbeda, ubah `LED_PIN` dan logika `digitalWrite` pada `src/main.cpp`.
 
-### Wiring RFID dan OLED
+### Wiring ESP32, RFID, dan OLED
 
-Hubungkan RC522 ke ESP32 menggunakan SPI dan OLED menggunakan I2C:
+Hubungkan RC522 ke ESP32 menggunakan bus SPI (default ESP32), dan OLED menggunakan bus I2C:
 
-| Modul | Pin modul | Pin ESP32 |
-|---|---|---|
-| RC522 | SDA / SS | GPIO5 |
-| RC522 | SCK | GPIO18 |
-| RC522 | MOSI | GPIO23 |
-| RC522 | MISO | GPIO19 |
-| RC522 | RST | GPIO27 |
-| RC522 | 3.3V, GND | 3V3, GND |
-| OLED I2C | SDA | GPIO21 |
-| OLED I2C | SCL | GPIO22 |
-| OLED I2C | VCC, GND | Sesuai spesifikasi modul, GND |
+| Modul | Pin modul | Pin ESP32 | Keterangan |
+|---|---|---|---|
+| LED bawaan / LED eksternal | Anoda / input | GPIO2 | Pin LED yang dikendalikan firmware; LED eksternal memerlukan resistor. |
+| RC522 | SDA / SS | GPIO5 | Chip select SPI; pin ini bukan SDA I2C. |
+| RC522 | SCK | GPIO18 | Clock SPI. |
+| RC522 | MOSI | GPIO23 | Data ESP32 ke RC522. |
+| RC522 | MISO | GPIO19 | Data RC522 ke ESP32. |
+| RC522 | RST | GPIO27 | Reset modul RFID. |
+| RC522 | 3.3V | 3V3 | Catu daya 3,3 V. |
+| RC522 | GND | GND | Ground bersama. |
+| OLED SSD1306 I2C | SDA | GPIO21 | Data I2C. |
+| OLED SSD1306 I2C | SCL | GPIO22 | Clock I2C. |
+| OLED SSD1306 I2C | VCC | Sesuai spesifikasi modul (3V3 disarankan) | Cek tegangan yang didukung modul. |
+| OLED SSD1306 I2C | GND | GND | Ground bersama. |
 
-RC522 harus diberi daya 3.3V; jangan hubungkan pin sinyal RC522 ke 5V. Firmware menampilkan UID kartu pada OLED dan Serial Monitor. Jika alamat OLED berbeda dari `0x3C`, ubah `OLED_ADDRESS` di `src/main.cpp`. Pin SS dan RST RC522 dapat disesuaikan melalui konstanta `RFID_SS_PIN` dan `RFID_RST_PIN`.
+Pastikan GND ESP32, RC522, dan OLED terhubung bersama. **RC522 hanya menggunakan catu daya dan logika 3,3 V; jangan hubungkan modul RC522 ke 5 V.** Firmware menampilkan UID kartu pada OLED dan Serial Monitor. Alamat OLED default adalah `0x3C`; jika alamat modul berbeda, ubah `OLED_ADDRESS` di `src/main.cpp`. Pin SS dan RST RC522 dapat disesuaikan melalui `RFID_SS_PIN` dan `RFID_RST_PIN`. Pin SPI dan I2C yang berbeda dari default board perlu disesuaikan pada kode inisialisasi bus.
 
 ## Struktur Project
 

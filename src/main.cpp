@@ -8,8 +8,13 @@
 #include <Adafruit_SSD1306.h>
 
 namespace {
+// Wiring ESP32 DevKit:
+// LED built-in: GPIO2
+// RC522 (SPI): SDA/SS=GPIO5, SCK=GPIO18, MOSI=GPIO23, MISO=GPIO19, RST=GPIO27, VCC=3V3, GND=GND
+// OLED SSD1306 (I2C): SDA=GPIO21, SCL=GPIO22, address=0x3C
+// RC522 signals and power must use 3.3V logic; do not connect it to 5V.
 constexpr uint8_t LED_PIN = 2;
-constexpr char API_TOKEN[] = "CHANGE_THIS_TO_A_LONG_RANDOM_TOKEN";
+constexpr char API_TOKEN[] = "123";
 constexpr uint8_t RFID_SS_PIN = 5;
 constexpr uint8_t RFID_RST_PIN = 27;
 constexpr uint8_t OLED_WIDTH = 128;
