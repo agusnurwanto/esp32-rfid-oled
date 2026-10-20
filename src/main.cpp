@@ -1,14 +1,59 @@
 #include <Arduino.h>
 #include <WebServer.h>
 #include <AutoConnect.h>
+#include <MFRC522.h>
+#include <SPI.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 
 namespace {
 constexpr uint8_t LED_PIN = 2;
 constexpr char API_TOKEN[] = "CHANGE_THIS_TO_A_LONG_RANDOM_TOKEN";
+constexpr uint8_t RFID_SS_PIN = 5;
+constexpr uint8_t RFID_RST_PIN = 27;
+constexpr uint8_t OLED_WIDTH = 128;
+constexpr uint8_t OLED_HEIGHT = 64;
+constexpr uint8_t OLED_ADDRESS = 0x3C;
 
 WebServer server(80);
 AutoConnect portal(server);
+MFRC522 rfid(RFID_SS_PIN, RFID_RST_PIN);
+Adafruit_SSD1306 display(OLED_WIDTH, OLED_HEIGHT, &Wire, -1);
 bool ledOn = false;
+bool displayReady = false;
+
+void showCardId(const String& cardId) {
+    if (!displayReady) return;
+
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0);
+    display.println("Kartu terdeteksi");
+    display.println("ID:");
+    display.println(cardId);
+    display.display();
+}
+
+void readRfidCard() {
+    if (!rfid.PICC_IsNewCardPresent() || !rfid.PICC_ReadCardSerial()) return;
+
+    String cardId;
+    for (byte i = 0; i < rfid.uid.size; ++i) {
+        if (i > 0) cardId += ':';
+        if (rfid.uid.uidByte[i] < 0x10) cardId += '0';
+        cardId += String(rfid.uid.uidByte[i], HEX);
+    }
+    cardId.toUpperCase();
+
+    Serial.print("ID kartu: ");
+    Serial.println(cardId);
+    showCardId(cardId);
+
+    rfid.PICC_HaltA();
+    rfid.PCD_StopCrypto1();
+}
 
 bool isAuthorized() {
     String authorization = server.header("Authorization");
@@ -73,35 +118,58 @@ void handleLed() {
 }
 
 void setup() {
-        Serial.begin(115200);
-        pinMode(LED_PIN, OUTPUT);
-        digitalWrite(LED_PIN, LOW);
+    Serial.begin(115200);
+    pinMode(LED_PIN, OUTPUT);
+    digitalWrite(LED_PIN, LOW);
 
     const char* headerKeys[] = {"Authorization"};
     server.collectHeaders(headerKeys, 1);
 
-        server.on("/control", HTTP_GET, handleControlPage);
-        server.on("/api/status", HTTP_GET, handleStatus);
-        server.on("/api/led", HTTP_POST, handleLed);
+    server.on("/control", HTTP_GET, handleControlPage);
+    server.on("/api/status", HTTP_GET, handleStatus);
+    server.on("/api/led", HTTP_POST, handleLed);
 
-        AutoConnectConfig config;
-        config.apid = "ESP32-Setup";
-        config.psk = "esp32setup";
-        config.autoReconnect = true;
-        config.reconnectInterval = 10;
-        portal.config(config);
+    displayReady = display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDRESS);
+    if (displayReady) {
+        display.clearDisplay();
+        display.setTextSize(1);
+        display.setTextColor(SSD1306_WHITE);
+        display.setCursor(0, 0);
+        display.println("Tempelkan kartu");
+        display.println("RFID...");
+        display.display();
+    } else {
+        Serial.println("Gagal menginisialisasi OLED. Periksa kabel dan alamat I2C.");
+    }
 
-        if (portal.begin()) {
-                Serial.print("Wi-Fi connected. Control page: http://");
-                Serial.print(WiFi.localIP());
-                Serial.println("/control");
-        } else {
-                Serial.println("Wi-Fi setup failed; restarting...");
-                delay(3000);
-                ESP.restart();
-        }
+    SPI.begin();
+    rfid.PCD_Init();
+    const byte rfidVersion = rfid.PCD_ReadRegister(rfid.VersionReg);
+    if (rfidVersion == 0x00 || rfidVersion == 0xFF) {
+        Serial.println("Gagal menginisialisasi RFID RC522. Periksa kabel dan catu daya.");
+    } else {
+        Serial.println("RFID RC522 siap. Tempelkan kartu.");
+    }
+
+    AutoConnectConfig config;
+    config.apid = "ESP32-Setup";
+    config.psk = "esp32setup";
+    config.autoReconnect = true;
+    config.reconnectInterval = 10;
+    portal.config(config);
+
+    if (portal.begin()) {
+        Serial.print("Wi-Fi connected. Control page: http://");
+        Serial.print(WiFi.localIP());
+        Serial.println("/control");
+    } else {
+        Serial.println("Wi-Fi setup failed; restarting...");
+        delay(3000);
+        ESP.restart();
+    }
 }
 
 void loop() {
-        portal.handleClient();
+    portal.handleClient();
+    readRfidCard();
 }

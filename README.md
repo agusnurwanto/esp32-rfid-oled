@@ -10,6 +10,7 @@ Project IoT sederhana berbasis ESP32 untuk mengatur LED melalui halaman web. Kon
 - Halaman kontrol LED pada `/control`.
 - API status LED dan koneksi Wi-Fi.
 - API untuk menyalakan dan mematikan LED.
+- Pembacaan UID kartu RFID RC522 dan penampilannya pada OLED SSD1306.
 - Proteksi API menggunakan Bearer token.
 - Dapat diakses dari internet menggunakan ngrok yang berjalan pada komputer atau Raspberry Pi di jaringan yang sama.
 
@@ -17,9 +18,29 @@ Project IoT sederhana berbasis ESP32 untuk mengatur LED melalui halaman web. Kon
 
 - ESP32 DevKit.
 - LED bawaan board pada GPIO2, atau LED eksternal dengan resistor.
+- Modul RFID RC522.
+- OLED SSD1306 I2C 128×64 dengan alamat default `0x3C`.
 - Kabel USB untuk upload firmware dan Serial Monitor.
 
 > GPIO2 adalah pin boot-strapping pada beberapa board ESP32. Pastikan rangkaian LED tidak mengganggu proses boot. Jika LED board menggunakan pin atau polaritas berbeda, ubah `LED_PIN` dan logika `digitalWrite` pada `src/main.cpp`.
+
+### Wiring RFID dan OLED
+
+Hubungkan RC522 ke ESP32 menggunakan SPI dan OLED menggunakan I2C:
+
+| Modul | Pin modul | Pin ESP32 |
+|---|---|---|
+| RC522 | SDA / SS | GPIO5 |
+| RC522 | SCK | GPIO18 |
+| RC522 | MOSI | GPIO23 |
+| RC522 | MISO | GPIO19 |
+| RC522 | RST | GPIO27 |
+| RC522 | 3.3V, GND | 3V3, GND |
+| OLED I2C | SDA | GPIO21 |
+| OLED I2C | SCL | GPIO22 |
+| OLED I2C | VCC, GND | Sesuai spesifikasi modul, GND |
+
+RC522 harus diberi daya 3.3V; jangan hubungkan pin sinyal RC522 ke 5V. Firmware menampilkan UID kartu pada OLED dan Serial Monitor. Jika alamat OLED berbeda dari `0x3C`, ubah `OLED_ADDRESS` di `src/main.cpp`. Pin SS dan RST RC522 dapat disesuaikan melalui konstanta `RFID_SS_PIN` dan `RFID_RST_PIN`.
 
 ## Struktur Project
 
@@ -36,7 +57,7 @@ Install PlatformIO melalui PlatformIO IDE atau PlatformIO Core. Project ini meng
 
 - Board: `esp32dev`
 - Framework: Arduino
-- Library: `hieromon/AutoConnect`
+- Library: `hieromon/AutoConnect`, `miguelbalboa/MFRC522`, `adafruit/Adafruit SSD1306`, dan `adafruit/Adafruit GFX Library`
 
 Build project:
 
@@ -268,6 +289,7 @@ Komputer yang menjalankan ngrok harus tetap menyala dan tetap terhubung ke jarin
 Sudah tersedia:
 
 - AutoConnect Wi-Fi provisioning.
+- Pembacaan UID RFID RC522 dan tampilan ID kartu pada OLED SSD1306.
 - Web server ESP32.
 - Halaman kontrol LED.
 - API status dan kontrol LED.
