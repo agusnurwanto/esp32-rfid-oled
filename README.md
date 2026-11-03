@@ -11,6 +11,8 @@ Project IoT sederhana berbasis ESP32 untuk mengatur LED melalui halaman web. Kon
 - API status LED dan koneksi Wi-Fi.
 - API untuk menyalakan dan mematikan LED.
 - Pembacaan UID kartu RFID RC522 dan penampilannya pada OLED SSD1306.
+- CRUD hingga 20 UID kartu melalui halaman kontrol; data disimpan permanen pada NVS ESP32.
+- Validasi kartu RFID berdasarkan UID tersimpan, dengan hasil lolos/ditolak pada OLED.
 - Proteksi API menggunakan Bearer token.
 - Dapat diakses dari internet menggunakan ngrok yang berjalan pada komputer atau Raspberry Pi di jaringan yang sama.
 
@@ -44,6 +46,23 @@ Hubungkan RC522 ke ESP32 menggunakan bus SPI (default ESP32), dan OLED menggunak
 | OLED SSD1306 I2C | GND | GND | Ground bersama. |
 
 Pastikan GND ESP32, RC522, dan OLED terhubung bersama. **RC522 hanya menggunakan catu daya dan logika 3,3 V; jangan hubungkan modul RC522 ke 5 V.** Firmware menampilkan UID kartu pada OLED dan Serial Monitor. Alamat OLED default adalah `0x3C`; jika alamat modul berbeda, ubah `OLED_ADDRESS` di `src/main.cpp`. Pin SS dan RST RC522 dapat disesuaikan melalui `RFID_SS_PIN` dan `RFID_RST_PIN`. Pin SPI dan I2C yang berbeda dari default board perlu disesuaikan pada kode inisialisasi bus.
+
+### Diagnosis koneksi melalui Serial Monitor
+
+Buka Serial Monitor pada baud rate `115200`, lalu reset ESP32. Saat startup, firmware memindai bus I2C dan menampilkan alamat perangkat yang ditemukan, kemudian memeriksa register versi RC522:
+
+- Tidak ada perangkat I2C: periksa daya, GND, SDA GPIO21, dan SCL GPIO22.
+- OLED tidak siap di alamat `0x3C`: pastikan alamat OLED sesuai dengan `OLED_ADDRESS`.
+- `RC522 tidak merespons` dengan `VersionReg=0x00` atau `0xFF`: periksa daya 3,3 V dan sambungan SPI/SS/RST pada tabel wiring.
+- `RC522 merespons`: komunikasi SPI dasar berhasil. Jika kartu tetap tidak terbaca, pastikan kartu kompatibel 13,56 MHz/ISO 14443A dan dekatkan ke antena RC522.
+
+Pemeriksaan ini dapat mendeteksi perangkat/bus yang tidak merespons, tetapi tidak dapat mengidentifikasi secara pasti kabel individual yang longgar atau rusak. Pin IRQ RC522 tidak digunakan oleh firmware ini dan boleh dibiarkan tidak tersambung.
+
+### Pengelolaan ID kartu RFID
+
+Buka `http://IP_ESP32/control` dan masukkan API token. Tempelkan kartu untuk melihat UID-nya pada OLED atau Serial Monitor, lalu masukkan UID pada area teks dengan format byte heksadesimal dipisahkan titik dua, misalnya `04:A1:B2:C3`. Pilih **Tambah** untuk menyimpan UID. Daftar UID yang tersimpan dapat dipilih untuk diperbarui atau dihapus. Maksimal 20 UID dapat disimpan dan data tetap tersedia setelah ESP32 dimulai ulang.
+
+Saat kartu ditempelkan, OLED menampilkan **KARTU VALID / Akses lolos** jika UID terdaftar, dan **KARTU TIDAK VALID / Akses ditolak** jika tidak terdaftar.
 
 ## Struktur Project
 
@@ -293,6 +312,7 @@ Sudah tersedia:
 
 - AutoConnect Wi-Fi provisioning.
 - Pembacaan UID RFID RC522 dan tampilan ID kartu pada OLED SSD1306.
+- Pengelolaan daftar UID kartu tersimpan dan validasi akses melalui OLED.
 - Web server ESP32.
 - Halaman kontrol LED.
 - API status dan kontrol LED.
