@@ -20,6 +20,7 @@ constexpr uint8_t RFID_MOSI_PIN = 23;
 constexpr uint8_t OLED_SDA_PIN = 21;
 constexpr uint8_t OLED_SCL_PIN = 22;
 constexpr uint8_t OLED_WIDTH = 128;
+
 constexpr uint8_t OLED_HEIGHT = 64;
 constexpr uint8_t OLED_ADDRESS = 0x3C;
 constexpr uint8_t MAX_CARD_COUNT = 20;
@@ -292,6 +293,11 @@ void readRfidCard() {
     rfid.PCD_StopCrypto1();
 }
 
+bool serviceCaptivePortal() {
+    readRfidCard();
+    return true;
+}
+
 bool isAuthorized() {
     String authorization = server.header("Authorization");
     return authorization == String("Bearer ") + API_TOKEN;
@@ -492,6 +498,7 @@ void setup() {
     portalConfig.autoReconnect = AUTOCONNECT_AUTO_RECONNECT;
     portalConfig.reconnectInterval = AUTOCONNECT_RECONNECT_INTERVAL;
     portal.config(portalConfig);
+    portal.whileCaptivePortal(serviceCaptivePortal);
 
     if (portal.begin()) {
         Serial.print("Wi-Fi connected. Control page: http://");

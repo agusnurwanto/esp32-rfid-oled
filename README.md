@@ -49,12 +49,16 @@ Pastikan GND ESP32, RC522, dan OLED terhubung bersama. **RC522 hanya menggunakan
 
 ### Diagnosis koneksi melalui Serial Monitor
 
-Buka Serial Monitor pada baud rate `115200`, lalu reset ESP32. Saat startup, firmware memindai bus I2C dan menampilkan alamat perangkat yang ditemukan, kemudian memeriksa register versi RC522:
+Buka Serial Monitor pada baud rate `115200`, lalu reset ESP32. Saat startup, firmware memindai bus I2C dan menampilkan alamat perangkat yang ditemukan, kemudian memeriksa register versi RC522. Pembacaan kartu juga berjalan saat AutoConnect sedang menunggu konfigurasi Wi-Fi di captive portal:
 
 - Tidak ada perangkat I2C: periksa daya, GND, SDA GPIO21, dan SCL GPIO22.
 - OLED tidak siap di alamat `0x3C`: pastikan alamat OLED sesuai dengan `OLED_ADDRESS`.
 - `RC522 tidak merespons` dengan `VersionReg=0x00` atau `0xFF`: periksa daya 3,3 V dan sambungan SPI/SS/RST pada tabel wiring.
-- `RC522 merespons`: komunikasi SPI dasar berhasil. Jika kartu tetap tidak terbaca, pastikan kartu kompatibel 13,56 MHz/ISO 14443A dan dekatkan ke antena RC522.
+- `RC522 merespons`: komunikasi SPI dasar berhasil, tetapi ini belum memastikan antena atau kartu berfungsi. Jika menempelkan kartu tidak menghasilkan baris `ID kartu:` maupun perubahan tampilan OLED:
+  1. Pastikan wiring sama persis dengan tabel (terutama SS GPIO4 dan RST GPIO16), GND tersambung bersama, dan RC522 mendapat catu 3,3 V.
+  2. Pastikan kartu/tag mendukung 13,56 MHz dan ISO 14443A (misalnya MIFARE); kartu akses 125 kHz tidak kompatibel.
+  3. Tempelkan kartu rata dan dekat ke antena modul, lalu coba kartu 13,56 MHz lain yang diketahui berfungsi.
+  4. Reset ESP32 sambil membuka Serial Monitor 115200 baud dan periksa pesan `RC522 merespons` serta baris UID ketika kartu ditempelkan.
 
 Pemeriksaan ini dapat mendeteksi perangkat/bus yang tidak merespons, tetapi tidak dapat mengidentifikasi secara pasti kabel individual yang longgar atau rusak. Pin IRQ RC522 tidak digunakan oleh firmware ini dan boleh dibiarkan tidak tersambung. Wiring RC522 yang dicantumkan di atas menggunakan SS GPIO4 dan RST GPIO16; cocokkan sambungan fisik dengan pin tersebut setelah firmware diperbarui.
 
