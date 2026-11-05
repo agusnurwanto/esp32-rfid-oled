@@ -33,11 +33,11 @@ Hubungkan RC522 ke ESP32 menggunakan bus SPI (default ESP32), dan OLED menggunak
 | Modul | Pin modul | Pin ESP32 | Keterangan |
 |---|---|---|---|
 | LED bawaan / LED eksternal | Anoda / input | GPIO2 | Pin LED yang dikendalikan firmware; LED eksternal memerlukan resistor. |
-| RC522 | SDA / SS | GPIO5 | Chip select SPI; pin ini bukan SDA I2C. |
+| RC522 | SDA / SS | GPIO4 | Chip select SPI; pin ini bukan SDA I2C. |
 | RC522 | SCK | GPIO18 | Clock SPI. |
 | RC522 | MOSI | GPIO23 | Data ESP32 ke RC522. |
 | RC522 | MISO | GPIO19 | Data RC522 ke ESP32. |
-| RC522 | RST | GPIO27 | Reset modul RFID. |
+| RC522 | RST | GPIO16 | Reset modul RFID. |
 | RC522 | 3.3V | 3V3 | Catu daya 3,3 V. |
 | RC522 | GND | GND | Ground bersama. |
 | OLED SSD1306 I2C | SDA | GPIO21 | Data I2C. |
@@ -45,7 +45,7 @@ Hubungkan RC522 ke ESP32 menggunakan bus SPI (default ESP32), dan OLED menggunak
 | OLED SSD1306 I2C | VCC | Sesuai spesifikasi modul (3V3 disarankan) | Cek tegangan yang didukung modul. |
 | OLED SSD1306 I2C | GND | GND | Ground bersama. |
 
-Pastikan GND ESP32, RC522, dan OLED terhubung bersama. **RC522 hanya menggunakan catu daya dan logika 3,3 V; jangan hubungkan modul RC522 ke 5 V.** Firmware menampilkan UID kartu pada OLED dan Serial Monitor. Alamat OLED default adalah `0x3C`; jika alamat modul berbeda, ubah `OLED_ADDRESS` di `src/main.cpp`. Pin SS dan RST RC522 dapat disesuaikan melalui `RFID_SS_PIN` dan `RFID_RST_PIN`. Pin SPI dan I2C yang berbeda dari default board perlu disesuaikan pada kode inisialisasi bus.
+Pastikan GND ESP32, RC522, dan OLED terhubung bersama. **RC522 hanya menggunakan catu daya dan logika 3,3 V; jangan hubungkan modul RC522 ke 5 V.** Firmware menampilkan UID kartu pada OLED dan Serial Monitor. Alamat OLED default adalah `0x3C`; jika alamat modul berbeda, ubah `OLED_ADDRESS` di `src/main.cpp`. Semua pin dan pengaturan utama (LED, API token, pin RFID/SPI dan OLED/I2C, konfigurasi access point AutoConnect, dan interval reconnect) berada di bagian `User settings` di awal `src/main.cpp`.
 
 ### Diagnosis koneksi melalui Serial Monitor
 
@@ -56,7 +56,7 @@ Buka Serial Monitor pada baud rate `115200`, lalu reset ESP32. Saat startup, fir
 - `RC522 tidak merespons` dengan `VersionReg=0x00` atau `0xFF`: periksa daya 3,3 V dan sambungan SPI/SS/RST pada tabel wiring.
 - `RC522 merespons`: komunikasi SPI dasar berhasil. Jika kartu tetap tidak terbaca, pastikan kartu kompatibel 13,56 MHz/ISO 14443A dan dekatkan ke antena RC522.
 
-Pemeriksaan ini dapat mendeteksi perangkat/bus yang tidak merespons, tetapi tidak dapat mengidentifikasi secara pasti kabel individual yang longgar atau rusak. Pin IRQ RC522 tidak digunakan oleh firmware ini dan boleh dibiarkan tidak tersambung.
+Pemeriksaan ini dapat mendeteksi perangkat/bus yang tidak merespons, tetapi tidak dapat mengidentifikasi secara pasti kabel individual yang longgar atau rusak. Pin IRQ RC522 tidak digunakan oleh firmware ini dan boleh dibiarkan tidak tersambung. Wiring RC522 yang dicantumkan di atas menggunakan SS GPIO4 dan RST GPIO16; cocokkan sambungan fisik dengan pin tersebut setelah firmware diperbarui.
 
 ### Pengelolaan ID kartu RFID
 
@@ -144,6 +144,22 @@ Setelah terhubung, Serial Monitor menampilkan alamat seperti:
 ```text
 Wi-Fi connected. Control page: http://192.168.1.50/control
 ```
+
+SSID dan password jaringan yang sedang terhubung juga dicetak saat startup. Untuk melihatnya kembali, pilih baud rate `115200`, pilih pengakhiran baris `Newline` atau `Both NL & CR`, lalu kirim perintah berikut:
+
+```text
+wifi status
+```
+
+Password ditampilkan dalam teks biasa di Serial Monitor. Jangan membagikan atau menyimpan log yang memuat password tersebut.
+
+Untuk memutuskan koneksi Wi-Fi dan menghentikan AutoConnect mencoba menyambung kembali, kirim:
+
+```text
+wifi disconnect
+```
+
+Perintah ini hanya memutus koneksi saat ini dan menonaktifkan reconnect hingga ESP32 di-reset/dinyalakan ulang. Kredensial jaringan yang disimpan AutoConnect tidak dihapus, sehingga ESP32 akan tersambung kembali setelah restart. Perintah ini tidak menghapus konfigurasi Wi-Fi tersimpan.
 
 ## Kontrol LED Lokal
 

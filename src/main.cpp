@@ -9,22 +9,31 @@
 #include <Preferences.h>
 
 namespace {
-// Wiring ESP32 DevKit:
-// LED built-in: GPIO2
-// RC522 (SPI): SDA/SS=GPIO5, SCK=GPIO18, MOSI=GPIO23, MISO=GPIO19, RST=GPIO27, VCC=3V3, GND=GND
-// OLED SSD1306 (I2C): SDA=GPIO21, SCL=GPIO22, address=0x3C
-// RC522 signals and power must use 3.3V logic; do not connect it to 5V.
+// User settings: update this section to match your board and installation.
 constexpr uint8_t LED_PIN = 2;
 constexpr char API_TOKEN[] = "123";
-constexpr uint8_t RFID_SS_PIN = 5;
-constexpr uint8_t RFID_RST_PIN = 27;
+constexpr uint8_t RFID_SS_PIN = 4;
+constexpr uint8_t RFID_RST_PIN = 16;
+constexpr uint8_t RFID_SCK_PIN = 18;
+constexpr uint8_t RFID_MISO_PIN = 19;
+constexpr uint8_t RFID_MOSI_PIN = 23;
+constexpr uint8_t OLED_SDA_PIN = 21;
+constexpr uint8_t OLED_SCL_PIN = 22;
 constexpr uint8_t OLED_WIDTH = 128;
 constexpr uint8_t OLED_HEIGHT = 64;
 constexpr uint8_t OLED_ADDRESS = 0x3C;
 constexpr uint8_t MAX_CARD_COUNT = 20;
+constexpr uint16_t WEB_SERVER_PORT = 80;
+constexpr char AUTOCONNECT_AP_SSID[] = "ESP32-Setup";
+constexpr char AUTOCONNECT_AP_PASSWORD[] = "esp32setup";
+constexpr bool AUTOCONNECT_AUTO_RECONNECT = true;
+constexpr uint8_t AUTOCONNECT_RECONNECT_INTERVAL = 10;
 
-WebServer server(80);
+// RC522 signals and power must use 3.3V logic; do not connect it to 5V.
+
+WebServer server(WEB_SERVER_PORT);
 AutoConnect portal(server);
+AutoConnectConfig portalConfig;
 MFRC522 rfid(RFID_SS_PIN, RFID_RST_PIN);
 Adafruit_SSD1306 display(OLED_WIDTH, OLED_HEIGHT, &Wire, -1);
 Preferences cardPreferences;
@@ -33,9 +42,11 @@ bool displayReady = false;
 bool cardStorageReady = false;
 String cardIds[MAX_CARD_COUNT];
 uint8_t cardCount = 0;
+String serialCommand;
 
 void scanI2cBus() {
-    Serial.println("Memindai perangkat I2C pada GPIO21 (SDA) dan GPIO22 (SCL)...");
+    Serial.printf("Memindai perangkat I2C pada GPIO%u (SDA) dan GPIO%u (SCL)...\n",
+                  OLED_SDA_PIN, OLED_SCL_PIN);
     uint8_t foundDevices = 0;
     for (uint8_t address = 1; address < 127; ++address) {
         Wire.beginTransmission(address);
@@ -290,6 +301,68 @@ void sendUnauthorized() {
     server.send(401, "application/json", "{\"error\":\"unauthorized\"}");
 }
 
+void printWifiStatus() {
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("Wi-Fi tidak sedang terhubung.");
+        return;
+    }
+
+    Serial.print("SSID Wi-Fi terhubung: ");
+    Serial.println(WiFi.SSID());
+    Serial.print("Password Wi-Fi terhubung: ");
+    Serial.println(WiFi.psk());
+    Serial.print("IP ESP32: ");
+    Serial.println(WiFi.localIP());
+    Serial.println("Catatan: password ditampilkan di Serial Monitor; jangan membagikan log ini.");
+}
+
+void handleSerialCommand(String command) {
+    command.trim();
+    command.toLowerCase();
+
+    if (command == "wifi status") {
+        printWifiStatus();
+    } else if (command == "wifi disconnect") {
+        portalConfig.autoReconnect = false;
+        portal.config(portalConfig);
+        WiFi.setAutoReconnect(false);
+        if (WiFi.status() == WL_CONNECTED) {
+            if (!WiFi.disconnect(false, false)) {
+                Serial.println("Gagal mengirim perintah putus Wi-Fi.");
+                return;
+            }
+            const uint32_t disconnectStarted = millis();
+            while (WiFi.status() == WL_CONNECTED && millis() - disconnectStarted < 3000) {
+                delay(10);
+            }
+            if (WiFi.status() == WL_CONNECTED) {
+                Serial.println("Wi-Fi masih terhubung setelah menunggu 3 detik; reconnect sudah dinonaktifkan.");
+                return;
+            }
+        }
+        Serial.println("Wi-Fi diputus dan AutoConnect reconnect dinonaktifkan sampai ESP32 restart.");
+        Serial.println("Kredensial Wi-Fi tersimpan tidak dihapus.");
+    } else if (command.length() > 0) {
+        Serial.println("Perintah tidak dikenal. Gunakan: wifi status atau wifi disconnect");
+    }
+}
+
+void handleSerialInput() {
+    while (Serial.available() > 0) {
+        const char input = static_cast<char>(Serial.read());
+        if (input == '\r') continue;
+        if (input == '\n') {
+            handleSerialCommand(serialCommand);
+            serialCommand = "";
+        } else if (serialCommand.length() < 64) {
+            serialCommand += input;
+        } else {
+            serialCommand = "";
+            Serial.println("Perintah serial terlalu panjang; input dibuang.");
+        }
+    }
+}
+
 void handleControlPage() {
     static const char page[] PROGMEM = R"HTML(
 <!doctype html><html lang="id"><head><meta charset="utf-8">
@@ -382,7 +455,7 @@ void setup() {
     server.on("/api/cards", HTTP_PUT, handleCardUpdate);
     server.on("/api/cards", HTTP_DELETE, handleCardDelete);
 
-    Wire.begin(21, 22);
+    Wire.begin(OLED_SDA_PIN, OLED_SCL_PIN);
     scanI2cBus();
 
     displayReady = display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDRESS);
@@ -397,31 +470,34 @@ void setup() {
         display.display();
     } else {
         Serial.printf("Gagal menginisialisasi OLED di alamat 0x%02X.\n", OLED_ADDRESS);
-        Serial.println("Periksa alamat OLED, kabel SDA/SCL (GPIO21/GPIO22), VCC, dan GND.");
+        Serial.printf("Periksa alamat OLED, kabel SDA->GPIO%u, SCL->GPIO%u, VCC, dan GND.\n",
+                      OLED_SDA_PIN, OLED_SCL_PIN);
     }
 
-    Serial.println("Menginisialisasi RC522 pada SPI: SS=GPIO5, SCK=GPIO18, MISO=GPIO19, MOSI=GPIO23, RST=GPIO27.");
-    SPI.begin(18, 19, 23, RFID_SS_PIN);
+    Serial.printf("Menginisialisasi RC522 pada SPI: SS=GPIO%u, SCK=GPIO%u, MISO=GPIO%u, MOSI=GPIO%u, RST=GPIO%u.\n",
+                  RFID_SS_PIN, RFID_SCK_PIN, RFID_MISO_PIN, RFID_MOSI_PIN, RFID_RST_PIN);
+    SPI.begin(RFID_SCK_PIN, RFID_MISO_PIN, RFID_MOSI_PIN, RFID_SS_PIN);
     rfid.PCD_Init();
     const byte rfidVersion = rfid.PCD_ReadRegister(rfid.VersionReg);
     if (rfidVersion == 0x00 || rfidVersion == 0xFF) {
         Serial.printf("RC522 tidak merespons (VersionReg=0x%02X).\n", rfidVersion);
-        Serial.println("Periksa SS/SDA->GPIO5, SCK->GPIO18, MISO->GPIO19, MOSI->GPIO23, RST->GPIO27, VCC=3V3, dan GND.");
+        Serial.printf("Periksa SS->GPIO%u, SCK->GPIO%u, MISO->GPIO%u, MOSI->GPIO%u, RST->GPIO%u, VCC=3V3, dan GND.\n",
+                      RFID_SS_PIN, RFID_SCK_PIN, RFID_MISO_PIN, RFID_MOSI_PIN, RFID_RST_PIN);
     } else {
         Serial.printf("RC522 merespons (VersionReg=0x%02X). Tempelkan kartu 13,56 MHz yang kompatibel.\n", rfidVersion);
     }
 
-    AutoConnectConfig config;
-    config.apid = "ESP32-Setup";
-    config.psk = "esp32setup";
-    config.autoReconnect = true;
-    config.reconnectInterval = 10;
-    portal.config(config);
+    portalConfig.apid = AUTOCONNECT_AP_SSID;
+    portalConfig.psk = AUTOCONNECT_AP_PASSWORD;
+    portalConfig.autoReconnect = AUTOCONNECT_AUTO_RECONNECT;
+    portalConfig.reconnectInterval = AUTOCONNECT_RECONNECT_INTERVAL;
+    portal.config(portalConfig);
 
     if (portal.begin()) {
         Serial.print("Wi-Fi connected. Control page: http://");
         Serial.print(WiFi.localIP());
         Serial.println("/control");
+        printWifiStatus();
     } else {
         Serial.println("Wi-Fi setup failed; restarting...");
         delay(3000);
@@ -431,5 +507,6 @@ void setup() {
 
 void loop() {
     portal.handleClient();
+    handleSerialInput();
     readRfidCard();
 }
