@@ -12,6 +12,9 @@ namespace {
 // User settings: update this section to match your board and installation.
 constexpr uint8_t LED_PIN = 2;
 constexpr char API_TOKEN[] = "123";
+constexpr uint8_t BUZZER_PIN = 25;
+constexpr uint8_t ACCESS_GRANTED_LED_PIN = 26;
+constexpr uint8_t ACCESS_DENIED_LED_PIN = 27;
 constexpr uint8_t RFID_SS_PIN = 4;
 constexpr uint8_t RFID_RST_PIN = 16;
 constexpr uint8_t RFID_SCK_PIN = 18;
@@ -41,6 +44,8 @@ Preferences cardPreferences;
 bool ledOn = false;
 bool displayReady = false;
 bool cardStorageReady = false;
+bool accessIndicatorOn = false;
+unsigned long accessIndicatorOffAt = 0;
 String cardIds[MAX_CARD_COUNT];
 uint8_t cardCount = 0;
 String serialCommand;
@@ -98,6 +103,41 @@ void showCardResult(const String& cardId, bool authorized) {
     display.println(authorized ? "Akses lolos" : "Akses ditolak");
     display.println(cardId);
     display.display();
+}
+
+void playToneSequence(const uint16_t* frequencies, uint8_t noteCount,
+                       uint16_t durationMs, uint16_t gapMs) {
+    for (uint8_t i = 0; i < noteCount; ++i) {
+        tone(BUZZER_PIN, frequencies[i], durationMs);
+        delay(durationMs);
+        noTone(BUZZER_PIN);
+        if (i + 1 < noteCount) delay(gapMs);
+    }
+}
+
+void playAccessResultSound(bool authorized) {
+    if (authorized) {
+        constexpr uint16_t frequencies[] = {1400, 1400};
+        playToneSequence(frequencies, 2, 100, 100);
+    } else {
+        constexpr uint16_t frequencies[] = {440, 330, 440, 330};
+        playToneSequence(frequencies, 4, 220, 100);
+    }
+}
+
+void showAccessIndicator(bool authorized) {
+    digitalWrite(ACCESS_GRANTED_LED_PIN, authorized ? HIGH : LOW);
+    digitalWrite(ACCESS_DENIED_LED_PIN, authorized ? LOW : HIGH);
+    accessIndicatorOn = true;
+    accessIndicatorOffAt = millis() + 3000UL;
+}
+
+void updateAccessIndicator() {
+    if (accessIndicatorOn && static_cast<long>(millis() - accessIndicatorOffAt) >= 0) {
+        digitalWrite(ACCESS_GRANTED_LED_PIN, LOW);
+        digitalWrite(ACCESS_DENIED_LED_PIN, LOW);
+        accessIndicatorOn = false;
+    }
 }
 
 String serializeCardList(const String* cards, uint8_t count) {
@@ -288,6 +328,8 @@ void readRfidCard() {
     const bool authorized = isCardRegistered(cardId);
     Serial.println(authorized ? "Validasi kartu lolos." : "Validasi kartu ditolak.");
     showCardResult(cardId, authorized);
+    showAccessIndicator(authorized);
+    playAccessResultSound(authorized);
 
     rfid.PICC_HaltA();
     rfid.PCD_StopCrypto1();
@@ -295,6 +337,7 @@ void readRfidCard() {
 
 bool serviceCaptivePortal() {
     readRfidCard();
+    updateAccessIndicator();
     return true;
 }
 
@@ -442,6 +485,12 @@ void setup() {
     Serial.begin(115200);
     pinMode(LED_PIN, OUTPUT);
     digitalWrite(LED_PIN, LOW);
+    pinMode(BUZZER_PIN, OUTPUT);
+    noTone(BUZZER_PIN);
+    pinMode(ACCESS_GRANTED_LED_PIN, OUTPUT);
+    digitalWrite(ACCESS_GRANTED_LED_PIN, LOW);
+    pinMode(ACCESS_DENIED_LED_PIN, OUTPUT);
+    digitalWrite(ACCESS_DENIED_LED_PIN, LOW);
 
     cardStorageReady = cardPreferences.begin("rfid-cards", false);
     if (cardStorageReady) {
@@ -516,4 +565,5 @@ void loop() {
     portal.handleClient();
     handleSerialInput();
     readRfidCard();
+    updateAccessIndicator();
 }

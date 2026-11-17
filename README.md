@@ -20,6 +20,8 @@ Project IoT sederhana berbasis ESP32 untuk mengatur LED melalui halaman web. Kon
 
 - ESP32 DevKit.
 - LED bawaan board pada GPIO2, atau LED eksternal dengan resistor.
+- LED indikator akses hijau dan merah, masing-masing dengan resistor.
+- Buzzer pasif untuk bunyi notifikasi akses.
 - Modul RFID RC522.
 - OLED SSD1306 I2C 128×64 dengan alamat default `0x3C`.
 - Kabel USB untuk upload firmware dan Serial Monitor.
@@ -33,6 +35,11 @@ Hubungkan RC522 ke ESP32 menggunakan bus SPI (default ESP32), dan OLED menggunak
 | Modul | Pin modul | Pin ESP32 | Keterangan |
 |---|---|---|---|
 | LED bawaan / LED eksternal | Anoda / input | GPIO2 | Pin LED yang dikendalikan firmware; LED eksternal memerlukan resistor. |
+| LED indikator hijau | Anoda | GPIO26 | Menyala 3 detik jika akses diterima; gunakan resistor seri. |
+| LED indikator merah | Anoda | GPIO27 | Menyala 3 detik jika akses ditolak; gunakan resistor seri. |
+| LED indikator (keduanya) | Katoda | GND | Hubungkan tiap LED ke GND melalui resistor. |
+| Buzzer pasif | Signal / I/O | GPIO25 | Bunyi saat kartu diterima atau ditolak. |
+| Buzzer pasif | GND | GND | Satukan ground dengan ESP32. |
 | RC522 | SDA / SS | GPIO4 | Chip select SPI; pin ini bukan SDA I2C. |
 | RC522 | SCK | GPIO18 | Clock SPI. |
 | RC522 | MOSI | GPIO23 | Data ESP32 ke RC522. |
@@ -46,6 +53,8 @@ Hubungkan RC522 ke ESP32 menggunakan bus SPI (default ESP32), dan OLED menggunak
 | OLED SSD1306 I2C | GND | GND | Ground bersama. |
 
 Pastikan GND ESP32, RC522, dan OLED terhubung bersama. **RC522 hanya menggunakan catu daya dan logika 3,3 V; jangan hubungkan modul RC522 ke 5 V.** Firmware menampilkan UID kartu pada OLED dan Serial Monitor. Alamat OLED default adalah `0x3C`; jika alamat modul berbeda, ubah `OLED_ADDRESS` di `src/main.cpp`. Semua pin dan pengaturan utama (LED, API token, pin RFID/SPI dan OLED/I2C, konfigurasi access point AutoConnect, dan interval reconnect) berada di bagian `User settings` di awal `src/main.cpp`.
+
+Gunakan buzzer pasif agar firmware dapat menghasilkan nada berbeda: kartu ditolak berbunyi empat nada rendah bergantian (“deng-dong-deng-dong”), sedangkan kartu diterima berbunyi dua nada tinggi (“ting-ting”). Hubungkan pin signal buzzer ke GPIO25 dan GND ke GND ESP32. Jika menggunakan buzzer aktif, bunyi nada mungkin tidak dapat dibedakan. LED hijau pada GPIO26 menyala selama 3 detik untuk akses diterima, dan LED merah pada GPIO27 menyala selama 3 detik untuk akses ditolak; gunakan resistor seri (misalnya 220–330 Ω) pada setiap LED.
 
 ### Diagnosis koneksi melalui Serial Monitor
 
